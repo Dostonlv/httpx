@@ -1,6 +1,9 @@
-use std::{io::Read, net::TcpListener};
+use std::{
+    io::{Read, Write},
+    net::TcpListener,
+};
 
-fn main() -> std::io::Result<()> {
+fn main() -> anyhow::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:8080")?;
     let addr = listener.local_addr()?;
 
@@ -12,7 +15,9 @@ fn main() -> std::io::Result<()> {
         let n = stream.read(&mut buf)?;
 
         let read_input = &buf[..n];
-        let send_text = String::from_utf8(read_input.to_vec()).unwrap();
+        let send_text = String::from_utf8(read_input.to_vec())?;
+
+        let _ = stream.write(b"hello world")?;
 
         println!("Client connected: {:?}", stream.peer_addr()?);
         println!("Client send text: {send_text}");
