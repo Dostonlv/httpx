@@ -17,6 +17,12 @@ fn main() -> anyhow::Result<()> {
         let read_input = &buf[..n];
         let send_text = String::from_utf8(read_input.to_vec())?;
 
+        // GET / HTTP/1.1
+        //  method path version
+
+        let splits : Vec<&str> = send_text.split(' ').collect();
+        println!("splits {splits:?}");
+
         let _ = stream.write(b"hello world")?;
 
         println!("Client connected: {:?}", stream.peer_addr()?);
