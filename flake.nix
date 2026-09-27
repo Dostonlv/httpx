@@ -1,111 +1,44 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    crane.url = "github:ipetkov/crane";
     flake-utils.url = "github:numtide/flake-utils";
-    advisory-db = {
-      url = "github:rustsec/advisory-db";
-      flake = false;
-    };
+    naersk.url = "github:nix-community/naersk";
   };
 
   outputs =
     {
       self,
       nixpkgs,
-      crane,
       flake-utils,
-      advisory-db,
-      ...
+      naersk,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-
-        craneLib = crane.mkLib pkgs;
-
-        src = craneLib.cleanCargoSource ./.;
-
-        commonArgs = {
-          inherit src;
-          strictDeps = true;
-        };
-
-        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-
-        crate = craneLib.buildPackage (
-          commonArgs
-          // {
-            inherit cargoArtifacts;
-          }
-        );
+        naersk-lib = pkgs.callPackage naersk { };
       in
       {
-        checks = {
-          inherit crate;
-
-          crate-clippy = craneLib.cargoClippy (
-            commonArgs
-            // {
-              inherit cargoArtifacts;
-              cargoClippyExtraArgs = "--all-targets -- --deny warnings";
-            }
-          );
-
-          crate-doc = craneLib.cargoDoc (
-            commonArgs
-            // {
-              inherit cargoArtifacts;
-              env.RUSTDOCFLAGS = "--deny warnings";
-            }
-          );
-
-          crate-fmt = craneLib.cargoFmt {
-            inherit src;
-          };
-
-          crate-toml-fmt = craneLib.taploFmt {
-            src = pkgs.lib.sources.sourceFilesBySuffices src [ ".toml" ];
-          };
-
-          crate-audit = craneLib.cargoAudit {
-            inherit src advisory-db;
-          };
-
-          crate-deny = craneLib.cargoDeny {
-            inherit src;
-          };
-
-          crate-nextest = craneLib.cargoNextest (
-            commonArgs
-            // {
-              inherit cargoArtifacts;
-              partitions = 1;
-              partitionType = "count";
-              cargoNextestPartitionsExtraArgs = "--no-tests=pass";
-            }
-          );
-        };
-
-        packages = {
-          default = crate;
+        packages.default = naersk-lib.buildPackage {
+          src = ./.;
         };
 
         apps.default = flake-utils.lib.mkApp {
-          drv = crate;
+          drv = self.packages.${system}.default;
         };
 
-        devShells.default = craneLib.devShell {
+        devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             self.formatter.${system}
+            cargo
+            rustc
+            rustPackages.clippy
+            rust-analyzer
             nixd
             statix
             deadnix
-
-            rust-analyzer
           ];
-            RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
+          RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
         };
 
         formatter = pkgs.nixfmt;
