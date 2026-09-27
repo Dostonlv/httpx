@@ -32,7 +32,8 @@
             self.formatter.${system}
             cargo
             rustc
-            rustPackages.clippy
+            clippy
+            rustfmt
             rust-analyzer
             nixd
             statix
