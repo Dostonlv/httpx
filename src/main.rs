@@ -18,12 +18,12 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn handle_stream(stream: &mut TcpStream) -> anyhow::Result<(), io::Error> {
+fn handle_stream(stream: &mut TcpStream) -> anyhow::Result<()> {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 1024];
 
     loop {
-        let n = stream.read(&mut chunk);
+        let n = stream.read(&mut chunk)?;
 
         if n == 0 {
             break;
