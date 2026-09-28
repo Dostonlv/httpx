@@ -13,6 +13,8 @@ struct Request {
     pub version: String,
     pub headers: HashMap<String, String>,
 }
+
+// http 1.1 standarts
 fn main() -> anyhow::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:8080")?;
 
@@ -100,9 +102,12 @@ fn handle_stream(stream: &mut TcpStream) -> anyhow::Result<Request> {
 
         let key = parts.0;
         let value = parts.1;
-        headers.insert(key.trim().to_string(), value.trim().to_string());
+        headers.insert(key.trim().to_ascii_lowercase(), value.trim().to_string());
     }
 
+    if !headers.contains_key("host") && version == "HTTP/1.1" {
+        return Err(anyhow!("host header is must have"));
+    }
     Ok(Request {
         method: method.to_string(),
         path: path.to_string(),
