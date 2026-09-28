@@ -4,6 +4,14 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
+use anyhow::anyhow;
+
+struct Request {
+    pub method: String,
+    pub path: String,
+    pub version: String,
+    pub headers: HashMap<String, String>,
+}
 fn main() -> anyhow::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:8080")?;
 
@@ -11,14 +19,14 @@ fn main() -> anyhow::Result<()> {
 
     for stream in listener.incoming() {
         let mut stream = stream?;
-        handle_stream(&mut stream);
+        let resp = handle_stream(&mut stream);
         stream.write_all(b"hello world")?;
     }
 
     Ok(())
 }
 
-fn handle_stream(stream: &mut TcpStream) -> anyhow::Result<()> {
+fn handle_stream(stream: &mut TcpStream) -> anyhow::Result<Request> {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 1024];
 
@@ -45,33 +53,44 @@ fn handle_stream(stream: &mut TcpStream) -> anyhow::Result<()> {
 
     let mut lines = send_text.split("\r\n");
 
-    let request_line = lines.next().unwrap();
-
+    let request_line = lines
+        .next()
+        .ok_or_else(|| anyhow!("error while read request lines"))?;
     let mut parts = request_line.split_whitespace();
 
-    let method = parts.next().unwrap();
-    let path = parts.next().unwrap();
-    let version = parts.next().unwrap();
-
-    println!("method: {method}");
-    println!("path: {path}");
-    println!("version: {version}");
+    let method = parts
+        .next()
+        .ok_or_else(|| anyhow!("error while parsing method "))?;
+    let path = parts
+        .next()
+        .ok_or_else(|| anyhow!("error while parsing path "))?;
+    let version = parts
+        .next()
+        .ok_or_else(|| anyhow!("error while parsing version "))?;
 
     let mut headers: HashMap<String, String> = HashMap::new();
 
     loop {
-        let request_line = lines.next().unwrap();
+        let request_line = lines
+            .next()
+            .ok_or_else(|| anyhow!("error while reading request line "))?;
         if request_line == "" {
             break;
         }
 
-        let parts = request_line.split_once(":");
+        let parts = request_line
+            .split_once(":")
+            .ok_or_else(|| anyhow!("error while parsing request line's parts "))?;
 
-        let key = parts.unwrap().0;
-        let value = parts.unwrap().1;
-        headers.insert(key.to_string(), value.to_string());
+        let key = parts.0;
+        let value = parts.1;
+        headers.insert(key.trim().to_string(), value.trim().to_string());
     }
-    println!("{headers:?}");
 
-    Ok(())
+    Ok(Request {
+        method: method.to_string(),
+        path: path.to_string(),
+        version: version.to_string(),
+        headers,
+    })
 }
