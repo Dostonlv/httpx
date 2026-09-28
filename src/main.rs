@@ -2,6 +2,8 @@ use std::{
     collections::HashMap,
     io::{self, Read, Write},
     net::{TcpListener, TcpStream},
+    thread,
+    time::Duration,
 };
 
 use anyhow::anyhow;
@@ -21,23 +23,15 @@ fn main() -> anyhow::Result<()> {
     println!("TCP server started: {}", listener.local_addr()?);
 
     for stream in listener.incoming() {
-        let mut stream = stream?;
-
-        match handle_stream(&mut stream) {
-            Ok(req) => {
-                println!("{req:?}");
-                let (code, reason, body) = match (req.path.as_str(), req.method.as_str()) {
-                    ("/", "GET") => (200, "OK", "ok"),
-                    ("/hello", "GET") => (200, "OK", "hello world"),
-                    (_, "GET") => (404, "Not Found", "not found"),
-                    (_, _) => (405, "Method Not Allowed", "method not allowed"),
-                };
-                write_response(&mut stream, code, reason, body)?;
+        match stream {
+            Ok(stream) => {
+                thread::spawn(move || {
+                    if let Err(e) = handle_connection(stream) {
+                        println!("[error] error while handle connection {e}");
+                    }
+                });
             }
-            Err(e) => {
-                println!("error: {e}");
-                write_response(&mut stream, 400, "Bad Request", "bad request")?;
-            }
+            Err(err) => println!("error while accept stream {err}"),
         }
     }
 
@@ -128,4 +122,26 @@ fn write_response(
     );
 
     stream.write_all(response.as_bytes())
+}
+
+fn handle_connection(mut stream: TcpStream) -> anyhow::Result<()> {
+    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+    match handle_stream(&mut stream) {
+        Ok(req) => {
+            println!("{req:?}");
+            let (code, reason, body) = match (req.path.as_str(), req.method.as_str()) {
+                ("/", "GET") => (200, "OK", "ok"),
+                ("/hello", "GET") => (200, "OK", "hello world"),
+                (_, "GET") => (404, "Not Found", "not found"),
+                (_, _) => (405, "Method Not Allowed", "method not allowed"),
+            };
+            write_response(&mut stream, code, reason, body)?;
+        }
+        Err(e) => {
+            println!("error: {e}");
+            write_response(&mut stream, 400, "Bad Request", "bad request")?;
+        }
+    }
+
+    Ok(())
 }
