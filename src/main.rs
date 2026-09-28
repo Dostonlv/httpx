@@ -6,6 +6,7 @@ use std::{
 
 use anyhow::anyhow;
 
+#[derive(Debug)]
 struct Request {
     pub method: String,
     pub path: String,
@@ -19,8 +20,17 @@ fn main() -> anyhow::Result<()> {
 
     for stream in listener.incoming() {
         let mut stream = stream?;
-        let resp = handle_stream(&mut stream);
-        stream.write_all(b"hello world")?;
+
+        match handle_stream(&mut stream) {
+            Ok(req) => {
+                println!("{req:?}");
+                write_response(&mut stream, 200, "OK", "hello world")?;
+            }
+            Err(e) => {
+                println!("error: {e}");
+                write_response(&mut stream, 400, "Bad Request", "bad request")?;
+            }
+        }
     }
 
     Ok(())
@@ -93,4 +103,18 @@ fn handle_stream(stream: &mut TcpStream) -> anyhow::Result<Request> {
         version: version.to_string(),
         headers,
     })
+}
+
+fn write_response(
+    stream: &mut TcpStream,
+    status_code: u16,
+    reason: &str,
+    body: &str,
+) -> io::Result<()> {
+    let response = format!(
+        "HTTP/1.1 {status_code} {reason}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+
+    stream.write_all(response.as_bytes())
 }
