@@ -8,6 +8,8 @@ use std::{
 
 use anyhow::anyhow;
 
+const MAX_HEADER_BYTES: usize = 8 * 1024;
+
 #[derive(Debug)]
 struct Request {
     pub method: String,
@@ -50,6 +52,9 @@ fn handle_stream(stream: &mut TcpStream) -> anyhow::Result<Request> {
         }
 
         buf.extend_from_slice(&chunk[..n]);
+        if buf.len() > MAX_HEADER_BYTES {
+            return Err(anyhow!("request headers too large"))
+        }
 
         if buf.windows(4).any(|window| window == b"\r\n\r\n") {
             break;
