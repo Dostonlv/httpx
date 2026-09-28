@@ -24,7 +24,13 @@ fn main() -> anyhow::Result<()> {
         match handle_stream(&mut stream) {
             Ok(req) => {
                 println!("{req:?}");
-                write_response(&mut stream, 200, "OK", "hello world")?;
+                let (code, reason, body) = match (req.path.as_str(), req.method.as_str()) {
+                    ("/", "GET") => (200, "OK", "ok"),
+                    ("/hello", "GET") => (200, "OK", "hello world"),
+                    (_, "GET") => (404, "Not Found", "not found"),
+                    (_, _) => (405, "Method Not Allowed", "method not allowed"),
+                };
+                write_response(&mut stream, code, reason, body)?;
             }
             Err(e) => {
                 println!("error: {e}");
